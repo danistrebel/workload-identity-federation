@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"golang.org/x/oauth2/google/externalaccount"
 )
 
@@ -18,20 +17,22 @@ func (s customAwsSecurityCredentialsSupplier) AwsRegion(ctx context.Context, opt
 }
 
 func (s customAwsSecurityCredentialsSupplier) AwsSecurityCredentials(ctx context.Context, options externalaccount.SupplierOptions) (*externalaccount.AwsSecurityCredentials, error) {
-	// Create an AWS session (assumes default AWS credentials chain)
-	awsSession := session.Must(session.NewSession())
-
-	// Assume role to retrieve credentials
-	stsCredential := stscreds.NewCredentials(awsSession, "") // Replace "" with your role ARN if needed
-	cred, err := stsCredential.Get()
+	conf, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error getting AWS credentials: %v", err)
+		fmt.Printf("Error loading AWS config: %v\n", err)
+		return nil, err
+	}
+
+	credentials, err := conf.Credentials.Retrieve(ctx)
+	if err != nil {
+		fmt.Printf("Error retrieving AWS credentials: %v\n", err)
+		return nil, err
 	}
 
 	return &externalaccount.AwsSecurityCredentials{
-		AccessKeyID:     cred.AccessKeyID,
-		SecretAccessKey: cred.SecretAccessKey,
-		SessionToken:    cred.SessionToken,
+		AccessKeyID:     credentials.AccessKeyID,
+		SecretAccessKey: credentials.SecretAccessKey,
+		SessionToken:    credentials.SessionToken,
 	}, nil
 }
 
