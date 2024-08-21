@@ -7,43 +7,25 @@ import (
 	"strings"
 
 	"cloud.google.com/go/vertexai/genai"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google/externalaccount"
+	"github.com/danistrebel/workload-identity-federation/go/ecs"
 	"google.golang.org/api/option"
 )
 
-type customAwsSecurityCredentialsSupplier struct{}
-
-func (s customAwsSecurityCredentialsSupplier) AwsRegion(ctx context.Context, options externalaccount.SupplierOptions) (string, error) {
-	// Replace with your logic to get the AWS region
-	return "us-east-1", nil
-}
-
-func (s customAwsSecurityCredentialsSupplier) AwsSecurityCredentials(ctx context.Context, options externalaccount.SupplierOptions) (*externalaccount.AwsSecurityCredentials, error) {
-	conf, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		fmt.Printf("Error loading AWS config: %v\n", err)
-		return nil, err
-	}
-
-	credentials, err := conf.Credentials.Retrieve(ctx)
-	if err != nil {
-		fmt.Printf("Error retrieving AWS credentials: %v\n", err)
-		return nil, err
-	}
-
-	return &externalaccount.AwsSecurityCredentials{
-		AccessKeyID:     credentials.AccessKeyID,
-		SecretAccessKey: credentials.SecretAccessKey,
-		SessionToken:    credentials.SessionToken,
-	}, nil
-}
-
-func generateContent(prompt string, customTokenSource oauth2.TokenSource) (string, error) {
+func generateContent(prompt string, opts ...option.ClientOption) (string, error) {
 	ctx := context.Background()
 
-	client, err := genai.NewClient(ctx, os.Getenv("GCP_PROJECT_ID"), os.Getenv("GCP_REGION"), option.WithTokenSource(customTokenSource))
+	projectId := os.Getenv("GCP_PROJECT_ID")
+	if projectId == "" {
+		fmt.Println("GCP_PROJECT_ID environment variable is not set")
+		return "", fmt.Errorf("GCP_PROJECT_ID environment variable is not set")
+	}
+
+	region := os.Getenv("GCP_REGION")
+	if region == "" {
+		region = "us-central1"
+	}
+
+	client, err := genai.NewClient(ctx, projectId, os.Getenv("GCP_REGION"), opts...)
 	if err != nil {
 		return "", err
 	}
@@ -67,48 +49,19 @@ func generateContent(prompt string, customTokenSource oauth2.TokenSource) (strin
 func main() {
 	ctx := context.Background()
 
-	// Read GCP Workload identity config from env variables
-	projectNumber := os.Getenv("GCP_PROJECT_NUMBER")
-	if projectNumber == "" {
-		fmt.Println("GCP_PROJECT_NUMBER environment variable is not set")
-		return
-	}
-	workloadPoolId := os.Getenv("WORKLOAD_IDENTITY_POOL_ID")
-	if workloadPoolId == "" {
-		fmt.Println("GCP_WORKLOAD_POOL_ID environment variable is not set")
-		return
-	}
-	providerId := os.Getenv("WORKLOAD_IDENTITY_PROVIDER_ID")
-	if providerId == "" {
-		fmt.Println("GCP_WORKLOAD_PROVIDER_ID environment variable is not set")
-		return
+	ops := []option.ClientOption{}
+
+	// Use custom AWS Security Credentials Supplier
+	if os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_FARGATE" {
+		ecsTokenSource, err := ecs.GetECSTokenSource(ctx)
+		if err != nil {
+			fmt.Printf("Error getting ECS token source: %v\n", err)
+			return
+		}
+		ops = append(ops, option.WithTokenSource(ecsTokenSource))
 	}
 
-	// Create an instance of your AWS Security Credentials Supplier
-	awsSupplier := customAwsSecurityCredentialsSupplier{}
-
-	// Create a GCP token source using the AWS credentials
-	// (assumes you have the necessary GCP permissions)
-	tokenSource, err := externalaccount.NewTokenSource(ctx, externalaccount.Config{
-		SubjectTokenType:               "urn:ietf:params:aws:token-type:aws4_request",
-		AwsSecurityCredentialsSupplier: awsSupplier,
-		Audience:                       fmt.Sprintf("//iam.googleapis.com/projects/%s/locations/global/workloadIdentityPools/%s/providers/%s", projectNumber, workloadPoolId, providerId), // Replace with your GCP project number, pool ID, and provider ID
-		Scopes:                         []string{"https://www.googleapis.com/auth/cloud-platform"},
-	})
-	if err != nil {
-		fmt.Printf("Error creating token source: %v\n", err)
-		return
-	}
-
-	// For Debug purposes only
-	// token, err := tokenSource.Token()
-	// if err != nil {
-	// 	fmt.Printf("Error obtaining token: %v\n", err)
-	// 	return
-	// }
-	// fmt.Printf("Access token: %s\n", token.AccessToken)
-
-	response, err := generateContent("Tell me a funny joke about food.", tokenSource)
+	response, err := generateContent("Tell me a funny joke about food.", ops...)
 	if err != nil {
 		fmt.Printf("Error generating content: %v\n", err)
 		return
