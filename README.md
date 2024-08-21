@@ -2,10 +2,11 @@
 
 The current workload identity federation implementation for AWS in the [Google Auth Python Library](https://google-auth.readthedocs.io/en/master/) is based on the EC2 metadata server.
 
-To make workload identity federation work in ECS, we need to apply a few tweaks as shown in [gcp_aws_credentials.py](./gcp_aws_credentials.py) to customize how the AWS token and client ID are obtained.
+## Python
+
+To make workload identity federation work in ECS, we need to apply a few tweaks as shown in [gcp_aws_credentials.py](./python/gcp_aws_credentials.py) to customize how the AWS token and client ID are obtained.
 
 This workaround is following the guidance from the auth library maintainers as mentioned in [this comment](https://github.com/googleapis/google-auth-library-python/pull/1556#issuecomment-2259334622).
-
 
 ## Authenticating the ECS service in GCP IAM
 
