@@ -8,6 +8,10 @@ To make workload identity federation work in ECS, we need to apply a few tweaks 
 
 This workaround is following the guidance from the auth library maintainers as mentioned in [this comment](https://github.com/googleapis/google-auth-library-python/pull/1556#issuecomment-2259334622).
 
+## Go
+
+In the Go implementation we use the Google [externalaccount.NewTokenSource](https://pkg.go.dev/golang.org/x/oauth2@v0.22.0/google/externalaccount#NewTokenSource) function with a custom AWS security credentials supplier. An end to end example can be found [here](./go/main.go).
+
 ## Authenticating the ECS service in GCP IAM
 
 Most likely you'll want to authenticate the AWS service in GCP via the task role:
