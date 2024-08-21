@@ -43,7 +43,7 @@ func (s customAwsSecurityCredentialsSupplier) AwsSecurityCredentials(ctx context
 func generateContent(prompt string, customTokenSource oauth2.TokenSource) (string, error) {
 	ctx := context.Background()
 
-	client, err := genai.NewClient(ctx, os.Getenv("GCP_PROJECT_ID"), "us-east1", option.WithTokenSource(customTokenSource))
+	client, err := genai.NewClient(ctx, os.Getenv("GCP_PROJECT_ID"), os.Getenv("GCP_REGION"), option.WithTokenSource(customTokenSource))
 	if err != nil {
 		return "", err
 	}
@@ -108,5 +108,11 @@ func main() {
 	// }
 	// fmt.Printf("Access token: %s\n", token.AccessToken)
 
-	generateContent("Tell me a funny joke about food.", tokenSource)
+	response, err := generateContent("Tell me a funny joke about food.", tokenSource)
+	if err != nil {
+		fmt.Printf("Error generating content: %v\n", err)
+		return
+	}
+
+	fmt.Println(response)
 }
